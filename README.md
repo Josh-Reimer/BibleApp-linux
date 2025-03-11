@@ -4,6 +4,8 @@ This is a simple GUI Bible program that you can use to search the bible and navi
 ![image_2024-10-20_171500582](https://github.com/user-attachments/assets/b2b31fe7-78a5-4cda-ba50-cac73d1167a1)
 
 # How to Use
-1. Clone the git repository
-2. cd BibleApp-linux
-3. python3 bible-gui-tk.py
+```
+Clone the git repository
+cd BibleApp-linux
+python3 bible-gui-tk.py
+```
