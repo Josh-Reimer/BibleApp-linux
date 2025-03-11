@@ -1,0 +1,7 @@
+.venv
+pyvenv.cfg
+__pycache__
+build
+lib
+lib64
+bibleSearchResult.txt
