@@ -5,7 +5,7 @@ This is a simple GUI Bible program that you can use to search the bible and navi
 
 # How to Use
 ```
-Clone the git repository
+clone https://github.com/Josh-Reimer/BibleApp-linux.git
 cd BibleApp-linux
 python3 bible-gui-tk.py
 ```
