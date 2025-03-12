@@ -1,8 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-import sys
 from os import close
-import pyperclip
 import ChapterVerse
 import list_and_str_ops as list
 from BibleFileNames import files
