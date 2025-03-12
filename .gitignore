@@ -4,4 +4,7 @@ __pycache__
 build
 lib
 lib64
+bin
+include
 bibleSearchResult.txt
+.gitignore
