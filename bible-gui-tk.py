@@ -97,6 +97,20 @@ book_selector_combobox = ttk.Combobox(
     width=18,
     textvariable=value_inside_book_selector
 )
+
+def show_context_menu(event):
+    widget = event.widget
+    context_menu = tk.Menu(window, tearoff=0)
+    
+    # Add Copy, Cut, and Paste options
+    context_menu.add_command(label="Cut", command=lambda: widget.event_generate("<<Cut>>"))
+    context_menu.add_command(label="Copy", command=lambda: widget.event_generate("<<Copy>>"))
+    context_menu.add_command(label="Paste", command=lambda: widget.event_generate("<<Paste>>"))
+
+    # Show menu at cursor position
+    context_menu.tk_popup(event.x_root, event.y_root)
+
+
 def get_selected_book(event):
   SELECTED_BOOK = get_selected_book_from_dropdown()
   print(SELECTED_BOOK)
@@ -174,10 +188,11 @@ number_of_results_label.grid(row=0, column=5, sticky="ew")
 book_selector_combobox.grid(row=0, column=6, sticky="ew")
 chapter_selector_combobox.grid(row=0,column=7,sticky="ew")
 verse_selector_combobox.grid(row=0,column=8,sticky="ew")
-
 bible_text_widget.pack(fill=tk.BOTH,expand=True)
 
 bible_text_widget.config(state=DISABLED)  #state must be disable so the user cant edit the bible text
+bible_text_widget.bind("<Button-3>", show_context_menu)  # Bind right-click
+searchBar_entry.bind("<Button-3>", show_context_menu)
 
 multiple_results = []
 file = open('bibleSearchResult.txt','w')
