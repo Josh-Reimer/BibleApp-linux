@@ -6,9 +6,9 @@ It contains many functions for cleaning up strings, lists
 and other such things.
 '''
 def trim(string):
-  '''Replaces all occurances of space with emptey space.'''
-  new_string = string.replace(" ", "")
-#//   
+  '''Replaces all occurances of space with empty string.'''
+  return string.replace(" ", "")
+#//
 def join(arr):
   #old version
   string = str(arr)
@@ -63,9 +63,6 @@ def disclean(str):
   return f"{str}.txt"
 #//
 def x_first_space(str):
-  chars = []
-  for char in str:
-    chars.append(char)
-  if chars[0] == " ":
-    chars[0] = ""
-#add reverse order function to module for reversing the order of items in a list
+  if str and str[0] == " ":
+    return str[1:]
+  return str
