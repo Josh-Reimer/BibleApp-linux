@@ -35,6 +35,11 @@ modules:
     config-opts:
       - --enable-threads
       - --enable-64bit
+    post-install:
+      # Tcl and its bundled packages install their shared libraries mode 555.
+      # flatpak-builder's debuginfo strip then dies with "Permission denied"
+      # wherever rofiles-fuse isn't mediating writes (the aarch64 job).
+      - find /app/lib -name '*.so' -exec chmod u+w {} +
     sources:
       - type: archive
         url: https://downloads.sourceforge.net/project/tcl/Tcl/8.6.15/tcl8.6.15-src.tar.gz
@@ -47,6 +52,8 @@ modules:
       - --with-tcl=/app/lib
       - --enable-threads
       - --enable-64bit
+    post-install:
+      - find /app/lib -name '*.so' -exec chmod u+w {} +  # same 555 issue as tcl
     sources:
       - type: archive
         url: https://downloads.sourceforge.net/project/tcl/Tcl/8.6.15/tk8.6.15-src.tar.gz
