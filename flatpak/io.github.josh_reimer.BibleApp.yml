@@ -1,0 +1,98 @@
+# Flatpak manifest for BibleApp.
+#
+#   flatpak install -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
+#   flatpak-builder --user --install --force-clean build-dir flatpak/io.github.josh_reimer.BibleApp.yml
+#   flatpak run io.github.josh_reimer.BibleApp
+#
+# The freedesktop runtime ships Python but not Tkinter, so Tcl, Tk, and a
+# CPython linked against them are built here. That is nearly all of the build
+# time; the app itself is 36 KB of Python plus 8.6 MB of scripture.
+id: io.github.josh_reimer.BibleApp
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: bibleapp
+
+finish-args:
+  # Tk 8.6 is an X11 toolkit; under Wayland it runs through XWayland.
+  - --socket=x11
+  - --share=ipc
+  # Deliberately no --share=network and no --filesystem=*: the app only reads
+  # its own bundled text and writes settings inside the sandbox.
+
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /share/man
+  - /share/doc
+  - '*.a'
+  - '*.la'
+
+modules:
+  - name: tcl
+    buildsystem: autotools
+    subdir: unix
+    config-opts:
+      - --enable-threads
+      - --enable-64bit
+    sources:
+      - type: archive
+        url: https://downloads.sourceforge.net/project/tcl/Tcl/8.6.15/tcl8.6.15-src.tar.gz
+        sha256: 861e159753f2e2fbd6ec1484103715b0be56be3357522b858d3cbb5f893ffef1
+
+  - name: tk
+    buildsystem: autotools
+    subdir: unix
+    config-opts:
+      - --with-tcl=/app/lib
+      - --enable-threads
+      - --enable-64bit
+    sources:
+      - type: archive
+        url: https://downloads.sourceforge.net/project/tcl/Tcl/8.6.15/tk8.6.15-src.tar.gz
+        sha256: 550969f35379f952b3020f3ab7b9dd5bfd11c1ef7c9b7c6a75f5c49aca793fec
+
+  - name: python3
+    buildsystem: autotools
+    config-opts:
+      - --enable-shared
+      - --with-ensurepip=no
+    build-options:
+      # Python 3.12 dropped --with-tcltk-includes/--with-tcltk-libs; it now
+      # finds Tk solely through pkg-config ("tcl >= 8.5.12 tk >= 8.5.12"),
+      # which is why Tcl and Tk must install their .pc files into /app first.
+      env:
+        PKG_CONFIG_PATH: /app/lib/pkgconfig
+      ldflags: -Wl,-rpath,/app/lib
+    post-install:
+      # _tkinter is the entire reason for building Python — fail the build
+      # loudly here rather than shipping an app that cannot open a window.
+      - /app/bin/python3 -c "import tkinter"
+      - rm -rf /app/lib/python3.12/test /app/lib/python3.12/idlelib /app/lib/python3.12/lib2to3
+    sources:
+      - type: archive
+        url: https://www.python.org/ftp/python/3.12.11/Python-3.12.11.tgz
+        sha256: 7b8d59af8216044d2313de8120bfc2cc00a9bd2e542f15795e1d616c51faf3d6
+
+  - name: bibleapp
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 flatpak/bibleapp /app/bin/bibleapp
+      - install -d /app/share/bibleapp
+      - install -Dm644 -t /app/share/bibleapp *.py
+      - install -Dm644 -t /app/share/bibleapp *.txt
+      - install -Dm644 black-bible.png
+        /app/share/icons/hicolor/256x256/apps/io.github.josh_reimer.BibleApp.png
+      - install -Dm644 flatpak/io.github.josh_reimer.BibleApp.desktop
+        /app/share/applications/io.github.josh_reimer.BibleApp.desktop
+      - install -Dm644 flatpak/io.github.josh_reimer.BibleApp.metainfo.xml
+        /app/share/metainfo/io.github.josh_reimer.BibleApp.metainfo.xml
+    sources:
+      # Builds the working tree, so local edits are picked up immediately.
+      # The copy submitted to Flathub must instead pin an immutable revision:
+      #   - type: git
+      #     url: https://github.com/Josh-Reimer/BibleApp-linux.git
+      #     tag: v1.0.0
+      #     commit: <full sha of that tag>
+      - type: dir
+        path: ..

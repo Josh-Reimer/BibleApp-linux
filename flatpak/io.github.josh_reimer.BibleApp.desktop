@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Desktop Bible
+Comment=Read and search the Bible offline
+Exec=bibleapp
+Icon=io.github.josh_reimer.BibleApp
+Terminal=false
+Categories=Education;Spirituality;Literature;Viewer;
+Keywords=Bible;Scripture;KJV;Verse;

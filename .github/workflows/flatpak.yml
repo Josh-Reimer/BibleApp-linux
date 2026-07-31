@@ -1,0 +1,60 @@
+name: Flatpak
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Cheap, fast job that catches the metadata problems Flathub's reviewers
+  # reject submissions for, without waiting on a full build.
+  metadata:
+    name: Validate metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y appstream desktop-file-utils
+
+      - name: Validate AppStream metainfo
+        run: appstreamcli validate --no-net flatpak/io.github.josh_reimer.BibleApp.metainfo.xml
+
+      - name: Validate desktop entry
+        run: desktop-file-validate flatpak/io.github.josh_reimer.BibleApp.desktop
+
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    # Tcl + Tk + CPython are all compiled from source; the first build on a
+    # cold cache is long. Cached runs are much faster.
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false  # an arch failure shouldn't hide the other arch's result
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          # Native arm64 runner (free for public repos). Flathub builds
+          # aarch64 too, so this catches arch breakage before submission.
+          # QEMU emulation is not a workable substitute here — emulating a
+          # full CPython build would blow past the job timeout.
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+
+    container:
+      image: bilelmoussaoui/flatpak-github-actions:freedesktop-24.08
+      options: --privileged  # flatpak-builder needs bubblewrap
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: flatpak/io.github.josh_reimer.BibleApp.yml
+          # Downloadable from the run's Artifacts section:
+          #   flatpak install --user bibleapp-x86_64.flatpak
+          bundle: bibleapp-${{ matrix.arch }}.flatpak

@@ -8,3 +8,8 @@ bin
 include
 bibleSearchResult.txt
 .gitignore
+settings.json
+# flatpak-builder artifacts
+.flatpak-builder/
+build-dir/
+repo/
