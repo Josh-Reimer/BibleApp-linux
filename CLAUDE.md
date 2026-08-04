@@ -73,9 +73,23 @@ If you add a new widget kind, it needs a branch in `_theme_widget()` (tk) or a `
 
 `Untitled/` is an untracked snapshot of the pre-refactor app (no themes, no settings, relative paths). It is not the live code; edits belong in the repo root.
 
+## Packaging overview
+
+Three formats, built from the same sources. The desktop entry, icon, and AppStream metainfo live in `flatpak/` because the manifest requires those exact filenames; `packaging/` reuses them rather than keeping duplicates, so edits to the `.desktop` or metainfo affect all three.
+
+| Format | Tk comes from | Notes |
+|---|---|---|
+| Flatpak | built in | `flatpak/`, ~16 MB |
+| `.deb` | system `python3-tk` | `packaging/build-deb.sh`, `Architecture: all` |
+| AppImage | built in | `packaging/build-appimage.sh`, built on ubuntu-22.04 to set the glibc floor |
+
+The `.deb` is the only one that doesn't compile anything, because it's the only one allowed to assume a distro package is present. It is **not** lintian-clean — no `copyright` or `changelog.Debian.gz` — which is downstream of the repo having no LICENSE; fine for a GitHub release, not for the Debian archive.
+
+`.github/workflows/packages.yml` builds both and launches each one under Xvfb for 10 seconds, treating `timeout`'s exit code 124 as success. That's the only automated check that the GUI actually opens rather than merely building.
+
 ## Flatpak packaging
 
-`flatpak/` holds the manifest, launcher, `.desktop` entry, and AppStream metainfo. App ID is `io.github.josh_reimer.BibleApp` (Flatpak IDs can't contain hyphens, so the GitHub username's `-` becomes `_`); the `.desktop` and metainfo filenames must keep matching that ID exactly.
+`flatpak/` holds the manifest, launcher, `.desktop` entry, and AppStream metainfo. App ID is `io.github.josh_reimer.BibleApp` (Flatpak IDs can't contain hyphens, so the GitHub username's `-` becomes `_`); the `.desktop` and metainfo filenames must keep matching that ID exactly. `flatpak/PUBLISHING.md` covers whether to publish to Flathub and what it requires — the app is **not** currently published anywhere.
 
 ```bash
 flatpak install -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
@@ -83,8 +97,27 @@ flatpak-builder --user --install --force-clean build-dir flatpak/io.github.josh_
 flatpak run io.github.josh_reimer.BibleApp
 ```
 
-The runtime ships Python but **not** Tkinter, so the manifest builds Tcl, Tk, and CPython. The load-bearing detail: Python 3.12 removed `--with-tcltk-includes`/`--with-tcltk-libs` and finds Tk only via pkg-config (`tcl >= 8.5.12 tk >= 8.5.12`), which is why `PKG_CONFIG_PATH=/app/lib/pkgconfig` is set on the `python3` module and why Tcl/Tk must install their `.pc` files first. A `post-install` step runs `import tkinter` so a broken chain fails the build instead of shipping an app that can't open a window.
+The runtime ships Python but **not** Tkinter, so the manifest builds Tcl 8.6.15, Tk 8.6.15, and CPython 3.12.11. Two details are load-bearing:
+
+- **pkg-config is the only route to Tk.** Python 3.12 removed `--with-tcltk-includes`/`--with-tcltk-libs` and resolves Tk solely through pkg-config (`tcl >= 8.5.12 tk >= 8.5.12`). Hence `PKG_CONFIG_PATH=/app/lib/pkgconfig` on the `python3` module, and Tcl/Tk must install their `.pc` files first. A `post-install` step runs `import tkinter` so a broken chain fails the build instead of shipping an app that can't open a window.
+- **Tcl and Tk install shared libraries mode 555**, which makes flatpak-builder's `eu-strip` debuginfo pass die with `Permission denied` on `libtcl8.6.so`. Both modules carry a `find /app/lib -name '*.so' -exec chmod u+w {} +` post-install step. Don't drop it — rofiles-fuse hides the problem, so the same manifest can pass on one runner and fail on another.
 
 Files install to `/app/share/bibleapp/` (read-only), which is why settings use the XDG path above. The app module builds the working tree via `type: dir`; the Flathub copy must pin a git tag + commit instead.
 
-`.github/workflows/flatpak.yml` builds the manifest on x86_64 and aarch64 and uploads installable `.flatpak` bundles as run artifacts — the only way to test this from a non-Linux machine. A separate fast `metadata` job runs `appstreamcli validate` and `desktop-file-validate`, which are the checks Flathub submissions most often fail.
+## Flatpak CI
+
+`.github/workflows/flatpak.yml` is the only way to test any of this from a non-Linux machine. Three jobs, all currently green:
+
+| Job | Runner | Time |
+|---|---|---|
+| `metadata` | `ubuntu-latest` | ~15s |
+| `build-x86_64` | `ubuntu-latest` + `freedesktop-24.08` container | ~4 min |
+| `build-aarch64` | `ubuntu-24.04-arm`, no container | ~5 min |
+
+`metadata` runs `appstreamcli validate` and `desktop-file-validate` — the checks Flathub submissions most often fail — and answers in seconds instead of after a full compile.
+
+The arm job cannot reuse the x86_64 one: `bilelmoussaoui/flatpak-github-actions` is published for x86_64 only (`no matching manifest for linux/arm64/v8`). It installs flatpak from apt and drives `flatpak-builder` by hand, and must first relax `kernel.apparmor_restrict_unprivileged_userns`, which Ubuntu 24.04 sets in a way that blocks bubblewrap.
+
+Keep the arm job. The two builds are not equivalent tests — arm is what caught the Tcl 555 bug above, which x86_64 passed straight through.
+
+Both build jobs upload installable `.flatpak` bundles (~16 MB) as run artifacts.
