@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.josh_reimer.BibleApp</id>
+
+  <name>Desktop Bible</name>
+  <summary>Read and search the Bible offline</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <!-- TODO before submitting to Flathub: this repository has no LICENSE file,
+       so the code defaults to all-rights-reserved, which is what the value
+       below records. Add a LICENSE and replace this with its SPDX id
+       (for example MIT or GPL-3.0-only). The KJV text itself is public
+       domain, so only your code needs a license. -->
+  <project_license>LicenseRef-proprietary</project_license>
+
+  <developer id="io.github.josh_reimer">
+    <name>Josh Reimer</name>
+  </developer>
+
+  <description>
+    <p>
+      A simple desktop Bible. The complete King James Version is bundled with
+      the application, so it works with no network connection.
+    </p>
+    <ul>
+      <li>Navigate by book, chapter, and verse</li>
+      <li>Search the whole Bible, one testament, or just the current book</li>
+      <li>Optional whole-word matching</li>
+      <li>Light, Dark, Sepia, and High Contrast themes</li>
+      <li>Adjustable reading font and size, remembered between sessions</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.josh_reimer.BibleApp.desktop</launchable>
+
+  <!-- Flathub requires at least one screenshot. These URLs come from the
+       README; if the review bot cannot fetch them, commit the PNGs to the
+       repo and point at their raw.githubusercontent.com URLs instead. -->
+  <screenshots>
+    <screenshot type="default">
+      <caption>Reading and searching scripture</caption>
+      <image>https://github.com/user-attachments/assets/b2b31fe7-78a5-4cda-ba50-cac73d1167a1</image>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/Josh-Reimer/BibleApp-linux</url>
+  <url type="bugtracker">https://github.com/Josh-Reimer/BibleApp-linux/issues</url>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="1.0.0" date="2026-07-30">
+      <description>
+        <p>First Flatpak release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

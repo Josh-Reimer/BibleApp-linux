@@ -1,0 +1,96 @@
+name: Flatpak
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Cheap, fast job that catches the metadata problems Flathub's reviewers
+  # reject submissions for, without waiting on a full build.
+  metadata:
+    name: Validate metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y appstream desktop-file-utils
+
+      - name: Validate AppStream metainfo
+        run: appstreamcli validate --no-net flatpak/io.github.josh_reimer.BibleApp.metainfo.xml
+
+      - name: Validate desktop entry
+        run: desktop-file-validate flatpak/io.github.josh_reimer.BibleApp.desktop
+
+  # Tcl + Tk + CPython are all compiled from source, so a cold-cache build is
+  # long on both architectures.
+  build-x86_64:
+    name: Build x86_64
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: bilelmoussaoui/flatpak-github-actions:freedesktop-24.08
+      options: --privileged  # flatpak-builder needs bubblewrap
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: flatpak/io.github.josh_reimer.BibleApp.yml
+          # The action appends the arch, giving artifact "bibleapp-x86_64".
+          # Downloadable from the run's Artifacts section:
+          #   flatpak install --user bibleapp.flatpak
+          bundle: bibleapp.flatpak
+
+  # Native arm64 runner (free for public repos). Cannot reuse the job above:
+  # the flatpak-github-actions container image is published for x86_64 only
+  # ("no matching manifest for linux/arm64/v8"), so flatpak is installed from
+  # apt and flatpak-builder is driven directly.
+  build-aarch64:
+    name: Build aarch64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Allow unprivileged user namespaces
+        # Ubuntu 24.04 confines unprivileged userns via AppArmor, which stops
+        # bubblewrap — and therefore flatpak-builder — from building sandboxes.
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Install flatpak
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists \
+            flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y flathub \
+            org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
+
+      # Lets repeat runs skip recompiling modules whose manifest entry is
+      # unchanged, which is nearly all of the build time.
+      - name: Cache flatpak-builder state
+        uses: actions/cache@v4
+        with:
+          path: .flatpak-builder
+          key: flatpak-builder-aarch64-${{ hashFiles('flatpak/io.github.josh_reimer.BibleApp.yml') }}
+          restore-keys: flatpak-builder-aarch64-
+
+      - name: Build
+        run: |
+          flatpak-builder --user --disable-rofiles-fuse --force-clean \
+            --repo=repo build-dir flatpak/io.github.josh_reimer.BibleApp.yml
+
+      - name: Bundle
+        run: |
+          flatpak build-bundle repo bibleapp-aarch64.flatpak \
+            io.github.josh_reimer.BibleApp
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bibleapp-aarch64
+          path: bibleapp-aarch64.flatpak
