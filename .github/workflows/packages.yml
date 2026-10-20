@@ -1,0 +1,85 @@
+name: Packages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  deb:
+    name: Build .deb
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: packaging/build-deb.sh
+
+      - name: Install
+        # Installing through apt (not dpkg -i) proves the declared
+        # dependencies actually resolve, python3-tk included.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ./dist/*.deb xvfb
+
+      - name: Launch under Xvfb
+        run: |
+          set +e
+          xvfb-run -a timeout 10 bibleapp
+          rc=$?
+          set -e
+          # timeout kills a healthy app with 124; anything else means it died.
+          if [ "$rc" -ne 124 ]; then
+            echo "app exited early (rc=$rc)"
+            exit 1
+          fi
+          echo "app stayed running for 10s under Xvfb"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bibleapp-deb
+          path: dist/*.deb
+
+  appimage:
+    name: Build AppImage
+    # Deliberately not ubuntu-latest: an AppImage only runs on glibc at least
+    # as new as the one it was built against, so this sets the floor at 22.04.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config xvfb \
+            libx11-dev libxext-dev libxft-dev libxss-dev libfontconfig1-dev \
+            zlib1g-dev libffi-dev libssl-dev libbz2-dev liblzma-dev \
+            libsqlite3-dev libreadline-dev
+
+      - name: Cache sources
+        uses: actions/cache@v4
+        with:
+          path: build-appimage/src
+          key: appimage-src-${{ hashFiles('packaging/build-appimage.sh') }}
+
+      - name: Build
+        run: packaging/build-appimage.sh
+
+      - name: Launch under Xvfb
+        run: |
+          set +e
+          APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a timeout 10 dist/BibleApp-*.AppImage
+          rc=$?
+          set -e
+          if [ "$rc" -ne 124 ]; then
+            echo "AppImage exited early (rc=$rc)"
+            exit 1
+          fi
+          echo "AppImage stayed running for 10s under Xvfb"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bibleapp-appimage
+          path: dist/*.AppImage

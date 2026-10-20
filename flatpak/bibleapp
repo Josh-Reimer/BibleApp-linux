@@ -1,0 +1,5 @@
+#!/bin/sh
+# Launcher installed as /app/bin/bibleapp.
+# Python puts the script's own directory on sys.path, so the sibling modules
+# (ChapterVerse, BibleFileNames, ...) and the .txt data resolve via _bpath().
+exec /app/bin/python3 /app/share/bibleapp/bible-gui-tk.py "$@"

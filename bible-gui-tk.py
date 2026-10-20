@@ -89,20 +89,37 @@ _font_family   = tk.StringVar(value="TkDefaultFont")
 _font_size     = tk.IntVar(value=11)
 _current_theme = tk.StringVar(value="Light")
 
-CONFIG_FILE = _bpath("settings.json")
+def _config_path():
+    """Settings live in the user's config dir, not next to the script.
+
+    Packaged installs (Flatpak, distro packages) mount the program directory
+    read-only, so writing settings.json there would silently fail.
+    """
+    base   = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    folder = os.path.join(base, "bibleapp")
+    try:
+        os.makedirs(folder, exist_ok=True)
+    except OSError:
+        return _bpath("settings.json")  # nothing writable — keep the old spot
+    return os.path.join(folder, "settings.json")
+
+CONFIG_FILE   = _config_path()
+LEGACY_CONFIG = _bpath("settings.json")  # pre-XDG location, still read once
 
 def load_settings():
-    try:
-        with open(CONFIG_FILE) as f:
-            s = json.load(f)
+    for path in (CONFIG_FILE, LEGACY_CONFIG):
+        try:
+            with open(path) as f:
+                s = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue  # missing or corrupt — try the next one, else defaults
         if s.get("theme") in THEMES:
             _current_theme.set(s["theme"])
         if s.get("font_family"):
             _font_family.set(s["font_family"])
         if isinstance(s.get("font_size"), int):
             _font_size.set(s["font_size"])
-    except (FileNotFoundError, json.JSONDecodeError, KeyError):
-        pass  # first run or corrupt file — use defaults
+        return
 
 def save_settings():
     try:
