@@ -88,6 +88,7 @@ modules:
       - install -d /app/share/bibleapp
       - install -Dm644 -t /app/share/bibleapp *.py
       - install -Dm644 -t /app/share/bibleapp *.txt
+      - install -Dm644 -t /app/share/bibleapp red_letter_kjv.json
       - install -Dm644 black-bible.png
         /app/share/icons/hicolor/256x256/apps/io.github.josh_reimer.BibleApp.png
       - install -Dm644 flatpak/io.github.josh_reimer.BibleApp.desktop

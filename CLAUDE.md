@@ -51,11 +51,19 @@ Note the inconsistency: `get_selected_book_from_dropdown()` returns an already-a
 
 ## Theming
 
-`THEMES` is a dict of named palettes with a fixed key set (`bg`, `fg`, `text_bg`, `text_fg`, `entry_bg`, `entry_fg`, `btn_bg`, `sel_bg`, `sel_fg`). Adding a theme means adding one entry with **all** keys — `_theme_widget()` indexes them unconditionally.
+`THEMES` is a dict of named palettes with a fixed key set (`bg`, `fg`, `text_bg`, `text_fg`, `entry_bg`, `entry_fg`, `btn_bg`, `sel_bg`, `sel_fg`, `red`). Adding a theme means adding one entry with **all** keys — `_theme_widget()` indexes them unconditionally.
 
 `_theme_widget()` walks the widget tree recursively and dispatches on `winfo_class()`. Classic `tk` widgets are recolored per-class there; `ttk` widgets (Combobox, Button, Scrollbar) can't be, so they're styled through `ttk.Style()` in `apply_theme()`. `ttk.Style().theme_use("clam")` is set at import time precisely because the native macOS/Windows ttk themes ignore color overrides — don't remove it. `Toplevel` is deliberately skipped so dialogs keep native chrome.
 
 If you add a new widget kind, it needs a branch in `_theme_widget()` (tk) or a `style.configure` call (ttk), or it will stay unthemed.
+
+## Red letters (words of Christ)
+
+`red_letter_kjv.json` is copied verbatim from the Bible-Verse Android app (`app/src/main/assets/`): `"bookIndex:chapter:verse"` → the verse text with the words of Christ wrapped in `<font color="#CC0000">…</font>`, 2027 entries. `bookIndex` indexes `books_file_names`. Every entry's text matches this repo's verse files exactly — keep it that way when replacing either.
+
+`_load_red_letter()` parses it once into `(plain text, [(start, end), …])`. `update_bible_text_widget(text, book_at)` inserts the text, then `apply_red_letter()` walks the widget's lines and adds the `red` tag to matching verses. `book_at(line, chapter, verse)` says which book a line belongs to: `one_book(i)` for book/chapter/verse views, a line→book dict for search results (each result is exactly two lines), and `whole_bible()` for `Bible.txt`, which detects book boundaries by the verse numbering going backwards — not by `1:1:`, since 2 Corinthians starts at 1:2. A verse is tagged only if its text equals the entry's plain text, so a misaligned line is skipped rather than miscoloured. `apply_theme()` sets the tag colour and raises `sel` above it. A missing JSON file just means no red letters.
+
+All three packagers install the JSON explicitly — their globs only cover `*.py` and `*.txt`.
 
 ## Settings persistence
 

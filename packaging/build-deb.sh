@@ -27,6 +27,7 @@ install -d "$STAGE/DEBIAN" \
 install -m644 "$ROOT"/*.py "$STAGE/usr/share/bibleapp/"
 find "$ROOT" -maxdepth 1 -name '*.txt' ! -name 'bibleSearchResult.txt' \
      -exec install -m644 {} "$STAGE/usr/share/bibleapp/" \;
+install -m644 "$ROOT/red_letter_kjv.json" "$STAGE/usr/share/bibleapp/"
 
 cat > "$STAGE/usr/bin/bibleapp" <<'EOF'
 #!/bin/sh

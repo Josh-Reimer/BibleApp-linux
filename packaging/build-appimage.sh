@@ -82,6 +82,7 @@ install -d "$APPDIR/usr/share/bibleapp" \
 install -m644 "$ROOT"/*.py "$APPDIR/usr/share/bibleapp/"
 find "$ROOT" -maxdepth 1 -name '*.txt' ! -name 'bibleSearchResult.txt' \
      -exec install -m644 {} "$APPDIR/usr/share/bibleapp/" \;
+install -m644 "$ROOT/red_letter_kjv.json" "$APPDIR/usr/share/bibleapp/"
 
 # Shared with the Flatpak and .deb builds; see packaging/build-deb.sh.
 DESKTOP=io.github.josh_reimer.BibleApp.desktop

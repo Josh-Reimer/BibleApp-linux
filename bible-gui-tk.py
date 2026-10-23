@@ -48,6 +48,7 @@ THEMES = {
         "btn_bg":    "#a8a8a8",
         "sel_bg":    "#0078d7",
         "sel_fg":    "#ffffff",
+        "red":       "#cc0000",
     },
     "Dark": {
         "bg":        "#2d2d2d",
@@ -59,6 +60,7 @@ THEMES = {
         "btn_bg":    "#3c3c3c",
         "sel_bg":    "#264f78",
         "sel_fg":    "#ffffff",
+        "red":       "#f47067",
     },
     "Sepia": {
         "bg":        "#f0e6c8",
@@ -70,6 +72,7 @@ THEMES = {
         "btn_bg":    "#c8a050",
         "sel_bg":    "#8b6914",
         "sel_fg":    "#ffffff",
+        "red":       "#b00000",
     },
     "High Contrast": {
         "bg":        "#000000",
@@ -81,6 +84,7 @@ THEMES = {
         "btn_bg":    "#1a1a1a",
         "sel_bg":    "#ffff00",
         "sel_fg":    "#000000",
+        "red":       "#ff5555",
     },
 }
 
@@ -152,9 +156,83 @@ def clean(s):
 def hasonlyspaces(string):
     return not string or string.isspace()
 
-def update_bible_text_widget(text):
+def update_bible_text_widget(text, book_at=None):
     bible_text_widget.delete("1.0", "end")
     bible_text_widget.insert(tk.END, text)
+    if book_at:
+        apply_red_letter(book_at)
+
+def book_index(path):
+    return books_file_names.index(os.path.basename(path))
+
+# ── Red letters (words of Christ) ─────────────────────────────────────────────
+# Same data as the Bible-Verse Android app: red_letter_kjv.json maps
+# "bookIndex:chapter:verse" (bookIndex into books_file_names) to the verse text
+# with the words of Christ wrapped in <font color="#CC0000">…</font>. Parsed once
+# here into (plain text, [(start, end), …]) so tagging is just offset math.
+VERSE_LINE = re.compile(r'^\s*(\d+):(\d+):\s?(.*?)\s*$')
+FONT_SPAN  = re.compile(r'<font[^>]*>(.*?)</font>', re.S)
+
+def _load_red_letter():
+    try:
+        with open(_bpath("red_letter_kjv.json"), encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}  # no data file — the app simply shows no red letters
+    parsed = {}
+    for ref, html in data.items():
+        plain, spans, pos = "", [], 0
+        for m in FONT_SPAN.finditer(html):
+            plain += html[pos:m.start()]
+            spans.append((len(plain), len(plain) + len(m[1])))
+            plain += m[1]
+            pos = m.end()
+        plain += html[pos:]
+        lead = len(plain) - len(plain.lstrip())
+        parsed[ref] = (plain.strip(), [(s - lead, e - lead) for s, e in spans])
+    return parsed
+
+RED_LETTER = _load_red_letter()
+
+def apply_red_letter(book_at):
+    """Tag the words of Christ in whatever the text widget is showing.
+
+    book_at(line_number, chapter, verse) returns the book index a verse line
+    belongs to. A verse is only tagged when its text matches the red-letter
+    entry exactly, so a stray line can never get the wrong span coloured.
+    """
+    bible_text_widget.tag_remove("red", "1.0", "end")
+    lines = bible_text_widget.get("1.0", "end-1c").split("\n")
+    for n, line in enumerate(lines, start=1):
+        m = VERSE_LINE.match(line)
+        if not m:
+            continue
+        ch, v = int(m[1]), int(m[2])
+        entry = RED_LETTER.get(f"{book_at(n, ch, v)}:{ch}:{v}")
+        if not entry or entry[0] != m[3]:
+            continue
+        col = m.start(3)
+        for s, e in entry[1]:
+            bible_text_widget.tag_add("red", f"{n}.{col + s}", f"{n}.{col + e}")
+
+def one_book(index):
+    return lambda n, ch, v: index
+
+def whole_bible():
+    """book_at for Bible.txt, which runs all 66 books together.
+
+    A new book starts wherever the verse numbering goes backwards. Watching for
+    "1:1:" would not do: 2 Corinthians 1:1 is missing from the data, so that
+    book starts at 1:2.
+    """
+    book, prev = 0, None
+    def book_at(n, ch, v):
+        nonlocal book, prev
+        if prev and (ch, v) < prev:
+            book += 1
+        prev = (ch, v)
+        return book
+    return book_at
 
 def apply_font():
     bible_text_widget.config(font=(_font_family.get(), _font_size.get()))
@@ -214,6 +292,8 @@ def apply_theme(theme_name=None, target=None):
         foreground=[("active", t["sel_fg"]), ("pressed", t["sel_fg"])])
 
     _theme_widget(target or window, t)
+    bible_text_widget.tag_configure("red", foreground=t["red"])
+    bible_text_widget.tag_raise("sel")  # selection colours win over red text
     apply_font()
 
 # ── Context menu ─────────────────────────────────────────────────────────────
@@ -358,7 +438,7 @@ bible_text_widget.bind("<Key>", _block_text_edit)
 # ── Navigation callbacks ──────────────────────────────────────────────────────
 def go_home():
     with open(_bpath("Bible.txt"), "r") as f:
-        update_bible_text_widget(f.read())
+        update_bible_text_widget(f.read(), whole_bible())
 
 def get_selected_book_from_dropdown():
     return _bpath(books_file_names[books_titled.index(book_selector_combobox.get())])
@@ -369,7 +449,7 @@ def get_selected_chapter_from_dropdown():
 def get_selected_book(event):
     filename = get_selected_book_from_dropdown()
     with open(filename, "r") as f:
-        update_bible_text_widget(f.read())
+        update_bible_text_widget(f.read(), one_book(book_index(filename)))
     with open(filename, "r") as f:
         lines = f.readlines()
     n_chapters = int(lines[-1].split(':')[0])
@@ -385,7 +465,8 @@ def get_selected_chapter(event):
     )
     verse_selector_combobox['values'] = [str(i + 1) for i in range(len(chapter_list))]
     verse_selector_combobox.set("")
-    update_bible_text_widget(" ".join(chapter_list))
+    update_bible_text_widget(" ".join(chapter_list),
+                             one_book(book_index(get_selected_book_from_dropdown())))
 
 def get_selected_verse(event):
     verse_text = ChapterVerse.get_verse(
@@ -393,7 +474,8 @@ def get_selected_verse(event):
         get_selected_chapter_from_dropdown(),
         int(verse_selector_combobox.get())
     )
-    update_bible_text_widget(verse_text)
+    update_bible_text_widget(verse_text,
+                             one_book(book_index(get_selected_book_from_dropdown())))
 
 book_selector_combobox.bind("<<ComboboxSelected>>",    get_selected_book)
 chapter_selector_combobox.bind("<<ComboboxSelected>>", get_selected_chapter)
@@ -420,9 +502,10 @@ def search_button_event():
     linearsearch(word)
 
 def linearsearch(searchkey):
-    results   = []
-    key_lower = searchkey.lower()
-    pattern   = re.compile(r'\b' + re.escape(key_lower) + r'\b') if whole_word_var.get() else None
+    results    = []
+    line_books = {}  # widget line number -> book index, for red letters
+    key_lower  = searchkey.lower()
+    pattern    = re.compile(r'\b' + re.escape(key_lower) + r'\b') if whole_word_var.get() else None
 
     for book in get_search_files():
         with open(_bpath(book)) as f:
@@ -432,7 +515,10 @@ def linearsearch(searchkey):
             verse_lower = verse.lower()
             matched = bool(pattern.search(verse_lower)) if pattern else key_lower in verse_lower
             if matched:
-                results.append(f"{book_title}\n{verse}")
+                # Each result is exactly two lines, so the verse sits on line 2k+2.
+                # A book's last line may lack its newline; add one so it holds.
+                line_books[2 * len(results) + 2] = book_index(book)
+                results.append(f"{book_title}\n{verse.rstrip(chr(10))}\n")
 
     count = len(results)
     if count == 0:
@@ -442,7 +528,7 @@ def linearsearch(searchkey):
         )
         results_label.config(text=f"No results for '{searchkey}'")
     else:
-        update_bible_text_widget("".join(results))
+        update_bible_text_widget("".join(results), lambda n, ch, v: line_books.get(n))
         noun = "result" if count == 1 else "results"
         results_label.config(text=f"{count} {noun} for '{searchkey}'")
 
